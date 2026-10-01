@@ -1,0 +1,45 @@
+name: Build APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install dependencies
+        run: npm install
+      - name: Create Android project
+        run: npx cap add android
+      - name: Use MindMath icon
+        run: |
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            cp icons/$d.png android/app/src/main/res/mipmap-$d/ic_launcher.png
+            cp icons/$d.png android/app/src/main/res/mipmap-$d/ic_launcher_round.png
+          done
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+      - name: Add notification permissions and icon
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <application#' $M
+          mkdir -p android/app/src/main/res/drawable
+          cp res-extra/ic_stat_mindmath.xml android/app/src/main/res/drawable/
+      - name: Sync web files
+        run: npx cap sync android
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MindMath-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
